@@ -10,7 +10,7 @@
     <header>
       <img src="../icons/thundercat-64.png" alt="">
       <div>
-        <h1>ThunderCat 6.0</h1>
+        <h1>ThunderCat 6.1</h1>
         <p>Dynamische Sortierung nach Kategorie und Absenderdomain</p>
       </div>
     </header>
@@ -95,9 +95,11 @@
       </div>
 
       <p class="warning">
-        API-Keys werden lokal im Thunderbird-Erweiterungsspeicher abgelegt.
-        Der vollständige Nachrichtentext wird nicht an die KI gesendet;
-        verwendet werden Absender, Domain und bis zu fünf Betreffzeilen.
+        API-Keys werden lokal und unverschlüsselt im
+        Thunderbird-Erweiterungsspeicher abgelegt. An die KI gesendet
+        werden Absenderadresse, Domain und bis zu fünf Betreffzeilen
+        (kein Nachrichtentext). Betreffzeilen können sensible Inhalte
+        enthalten und sind für den KI-Anbieter sichtbar.
       </p>
 
       <div class="buttons">
@@ -122,10 +124,10 @@
 ├─ Arbeit/&lt;domain&gt;
 ├─ Finanzen/&lt;domain&gt;
 ├─ Shopping/&lt;domain&gt;
-├─ Webhosting/&lt;domain&gt;
+├─ Digitales/&lt;domain&gt;
 ├─ Newsletter/&lt;domain&gt;
 ├─ Privat/&lt;domain&gt;
-└─ Sonstiges/&lt;domain&gt;</pre>
+└─ Unsicher/&lt;domain&gt;</pre>
       <button id="createFolders">7 Hauptordner jetzt anlegen / prüfen</button>
       <div id="folderStatus" class="status"></div>
     </section>
