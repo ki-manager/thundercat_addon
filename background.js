@@ -1262,5 +1262,5 @@ setupMenus().catch(error => {
 });
 
 console.info(
-  "ThunderCat 6.1.1 Background gestartet."
+  "ThunderCat 6.1.2 Background gestartet."
 );
