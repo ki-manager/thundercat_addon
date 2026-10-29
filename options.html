@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>ThunderCat Einstellungen</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header>
+      <img src="../icons/thundercat-64.png" alt="">
+      <div>
+        <h1>ThunderCat 6.0</h1>
+        <p>Dynamische Sortierung nach Kategorie und Absenderdomain</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>Automatik</h2>
+
+      <label class="check">
+        <input type="checkbox" id="enabled">
+        ThunderCat aktivieren
+      </label>
+
+      <label class="check">
+        <input type="checkbox" id="processNewMail">
+        Neue Mails automatisch sortieren
+      </label>
+
+      <label class="check">
+        <input type="checkbox" id="autoCreateFolders">
+        Fehlende Ordner automatisch anlegen und sofort verwenden
+      </label>
+
+      <label class="check">
+        <input type="checkbox" id="includeSubfolders">
+        Auch Unterordner beim manuellen Scan einbeziehen
+      </label>
+
+      <label>
+        Maximale Nachrichten pro gescanntem Ordner
+        <input type="number" id="scanLimit" min="1" max="20000">
+      </label>
+
+      <label>
+        KI-Batch-Größe
+        <input type="number" id="batchSize" min="1" max="50">
+      </label>
+
+      <label>
+        Mindest-Sicherheit
+        <input type="number" id="minConfidence" min="0" max="1" step="0.01">
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>KI-Provider</h2>
+
+      <label>
+        Provider
+        <select id="provider">
+          <option value="mistral">Mistral API</option>
+          <option value="openai">ChatGPT / OpenAI API</option>
+        </select>
+      </label>
+
+      <div id="mistralBlock" class="provider-block">
+        <label>
+          Mistral API-Key
+          <input type="password" id="mistralApiKey" autocomplete="off">
+        </label>
+
+        <label>
+          Mistral-Modell
+          <input type="text" id="mistralModel">
+        </label>
+      </div>
+
+      <div id="openaiBlock" class="provider-block">
+        <label>
+          OpenAI API-Key
+          <input type="password" id="openaiApiKey" autocomplete="off">
+        </label>
+
+        <label>
+          OpenAI-Modell
+          <input type="text" id="openaiModel">
+        </label>
+
+        <p class="hint">
+          Für den automatischen ChatGPT-Modus wird die OpenAI API verwendet.
+          ChatGPT-Abonnement und API-Abrechnung sind getrennt.
+        </p>
+      </div>
+
+      <p class="warning">
+        API-Keys werden lokal im Thunderbird-Erweiterungsspeicher abgelegt.
+        Der vollständige Nachrichtentext wird nicht an die KI gesendet;
+        verwendet werden Absender, Domain und bis zu fünf Betreffzeilen.
+      </p>
+
+      <div class="buttons">
+        <button id="save" class="primary">Einstellungen speichern</button>
+        <button id="testProvider">Provider testen</button>
+      </div>
+
+      <div id="providerStatus" class="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>Konten</h2>
+      <p class="hint">
+        Wenn kein Konto ausgewählt ist, verarbeitet ThunderCat alle Mailkonten.
+      </p>
+      <div id="accounts"></div>
+    </section>
+
+    <section class="card">
+      <h2>Ordnerstruktur</h2>
+      <pre>INBOX/
+├─ Arbeit/&lt;domain&gt;
+├─ Finanzen/&lt;domain&gt;
+├─ Shopping/&lt;domain&gt;
+├─ Webhosting/&lt;domain&gt;
+├─ Newsletter/&lt;domain&gt;
+├─ Privat/&lt;domain&gt;
+└─ Sonstiges/&lt;domain&gt;</pre>
+      <button id="createFolders">7 Hauptordner jetzt anlegen / prüfen</button>
+      <div id="folderStatus" class="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>Gelernte Absender</h2>
+      <p class="hint">
+        Eine Zuordnung wird pro Absender gespeichert. Dadurch muss eine bekannte
+        Adresse nicht erneut per KI analysiert werden.
+      </p>
+
+      <div class="toolbar">
+        <input type="search" id="mappingSearch" placeholder="Absender oder Domain suchen">
+        <button id="exportMappings">JSON exportieren</button>
+        <label class="file-button">
+          JSON importieren
+          <input type="file" id="importMappings" accept="application/json,.json">
+        </label>
+      </div>
+
+      <div id="mappingTable"></div>
+    </section>
+
+    <section class="card">
+      <h2>Kontextmenü</h2>
+      <p>
+        Rechtsklick auf eine Nachricht → <strong>ThunderCat</strong> →
+        „Zu Arbeit lernen“, „Zu Finanzen lernen“, „Zu Digitales lernen“ usw.
+        Die Zuordnung wird gespeichert und die ausgewählte Nachricht sofort
+        in den passenden Domain-Unterordner verschoben.
+      </p>
+    </section>
+
+    <div id="saveStatus" class="status footer-status"></div>
+  </main>
+
+  <script src="options.js"></script>
+</body>
+</html>

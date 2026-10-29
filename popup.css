@@ -1,0 +1,101 @@
+
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  width: 360px;
+  margin: 0;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+header img {
+  width: 44px;
+  height: 44px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+header p {
+  margin: 2px 0 0;
+  opacity: .7;
+  font-size: 12px;
+}
+
+.status-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.status-card div {
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 10px;
+}
+
+.status-card span {
+  display: block;
+  font-size: 11px;
+  opacity: .65;
+  margin-bottom: 3px;
+}
+
+.status-card strong {
+  font-size: 14px;
+}
+
+button {
+  width: 100%;
+  margin: 5px 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  cursor: pointer;
+  font: inherit;
+}
+
+button.primary {
+  font-weight: 700;
+}
+
+button:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+.message {
+  min-height: 18px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+.activity {
+  margin-top: 8px;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 11px;
+}
+
+.activity div {
+  padding: 6px 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+summary {
+  cursor: pointer;
+  font-size: 12px;
+}

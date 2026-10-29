@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "ThunderCat – Dynamic Mail Sorter",
+  "description": "Sortiert neue E-Mails automatisch in 7 Hauptkategorien und dynamische Domain-Unterordner.",
+  "version": "6.1.1",
+  "author": "Thorsten Höke",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "thundercat@ki38.de",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": [
+    "accountsRead",
+    "accountsFolders",
+    "messagesRead",
+    "messagesMove",
+    "storage",
+    "menus",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://api.mistral.ai/*",
+    "https://api.openai.com/*"
+  ],
+  "background": {
+    "page": "background.html"
+  },
+  "action": {
+    "default_title": "ThunderCat",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/thundercat-16.png",
+      "32": "icons/thundercat-32.png",
+      "64": "icons/thundercat-64.png"
+    }
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/thundercat-16.png",
+    "32": "icons/thundercat-32.png",
+    "48": "icons/thundercat-48.png",
+    "64": "icons/thundercat-64.png",
+    "96": "icons/thundercat-96.png"
+  }
+}

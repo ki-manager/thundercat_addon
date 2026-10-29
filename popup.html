@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>ThunderCat</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="../icons/thundercat-48.png" alt="">
+    <div>
+      <h1>ThunderCat</h1>
+      <p>Dynamic Mail Sorter</p>
+    </div>
+  </header>
+
+  <section class="status-card">
+    <div><span>Status</span><strong id="enabled">–</strong></div>
+    <div><span>Provider</span><strong id="provider">–</strong></div>
+    <div><span>Gelernte Absender</span><strong id="mappings">0</strong></div>
+    <div><span>Verschoben</span><strong id="moved">0</strong></div>
+  </section>
+
+  <button id="scan" class="primary">Posteingang jetzt sortieren</button>
+  <button id="folders">7 Hauptordner anlegen / prüfen</button>
+  <button id="settings">Einstellungen öffnen</button>
+
+  <div id="message" class="message"></div>
+
+  <details>
+    <summary>Letzte Aktivitäten</summary>
+    <div id="activity" class="activity"></div>
+  </details>
+
+  <script src="popup.js"></script>
+</body>
+</html>
