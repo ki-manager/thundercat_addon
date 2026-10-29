@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ThunderCat – Dynamic Mail Sorter",
   "description": "Sortiert neue E-Mails automatisch in 7 Hauptkategorien und dynamische Domain-Unterordner.",
-  "version": "6.1.1",
+  "version": "6.1.2",
   "author": "Thorsten Höke",
   "browser_specific_settings": {
     "gecko": {

@@ -473,18 +473,50 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/*
+ * Serialisiert alle zustandsverändernden Läufe (Scan, neue Mail,
+ * Kontextmenü), damit parallele readState/writeState-Zyklen sich nicht
+ * gegenseitig überschreiben.
+ */
+const taskChain = Promise.resolve();
+
+function runSerialized(task) {
+  const run = taskChain.then(task);
+  taskChain = run.catch(() => {});
+  return run;
+}
+
 function formatMoveError(error) {
   const message = String(error?.message || error || "Unbekannter Move-Fehler");
   const status = message.match(/status:\s*(\d+)/i)?.[1];
   return status ? `${message} (Status ${status})` : message;
 }
 
+/*
+ * Nach einem fehlgeschlagenen MOVE kann eine Nachricht bei IMAP trotzdem
+ * bereits im Zielordner liegen. Da Thunderbird einer verschobenen Nachricht
+ * eine neue ID zuweist, kann die alte ID nicht direkt im Ziel nachgewiesen
+ * werden. Stattdessen: ist die alte ID nicht mehr auffindbar, ist die
+ * Nachricht mit hoher Wahrscheinlichkeit bereits verschoben.
+ */
 async function verifyMessageInTarget(messageId, targetFolderId) {
   try {
     const current = await messenger.messages.get(messageId);
-    return current?.folder?.id === targetFolderId;
-  } catch (_) {
+
+    if (current?.folder?.id === targetFolderId) {
+      return true;
+    }
+
+    // Nachricht existiert noch am Ursprungsort: der Move ist wirklich
+    // fehlgeschlagen.
     return false;
+  } catch (error) {
+    // Nur ein explizit "nicht gefunden" gilt als bereits verschoben.
+    // Andere Fehler (z. B. Verbindungsprobleme) dürfen keinen Erfolg
+    // vortäuschen.
+    return /not found|does not exist|ungültig|ungültige/i.test(
+      String(error?.message || error)
+    );
   }
 }
 
@@ -550,11 +582,17 @@ async function findChildFolder(parentId, childName) {
   ) || null;
 }
 
-async function ensureChildFolder(parentId, childName, state) {
+async function ensureChildFolder(parentId, childName, state, autoCreate) {
   let child = await findChildFolder(parentId, childName);
 
   if (child) {
     return child;
+  }
+
+  if (autoCreate === false) {
+    throw new Error(
+      `Ordner fehlt und wird nicht automatisch angelegt: ${childName}`
+    );
   }
 
   child = await messenger.folders.create(
@@ -579,21 +617,25 @@ async function ensureChildFolder(parentId, childName, state) {
 
 async function ensureCategoryFoldersForInbox(inbox, state) {
   for (const category of CATEGORIES) {
-    await ensureChildFolder(inbox.id, category, state);
+    await ensureChildFolder(inbox.id, category, state, true);
   }
 }
 
 async function ensureTargetFolder(inbox, category, domain, state) {
+  const autoCreate = Boolean(state.settings.autoCreateFolders);
+
   const categoryFolder = await ensureChildFolder(
     inbox.id,
     category,
-    state
+    state,
+    autoCreate
   );
 
   const domainFolder = await ensureChildFolder(
     categoryFolder.id,
     getBaseDomain(domain),
-    state
+    state,
+    autoCreate
   );
 
   return domainFolder;
@@ -718,7 +760,23 @@ async function classifyUnknownGroups(groups, state) {
 
   for (let start = 0; start < unknown.length; start += batchSize) {
     const batch = unknown.slice(start, start + batchSize);
-    const results = await classifyItems(batch, state.settings);
+
+    // Ein fehlschlagender Batch (z. B. Rate-Limit) darf die Verarbeitung
+    // bereits gelernter Absender nicht blockieren.
+    let results;
+
+    try {
+      results = await classifyItems(batch, state.settings);
+    } catch (error) {
+      state.stats.errors += 1;
+
+      addActivity(state, {
+        type: "classification-error",
+        message: `Batch mit ${batch.length} Absender(n) konnte nicht klassifiziert werden: ${error.message || String(error)}`,
+      });
+
+      continue;
+    }
 
     for (const result of results) {
       const original = batch.find(item => item.email === result.email);
@@ -837,131 +895,137 @@ async function processMessagesForInbox(messages, inbox, state) {
 }
 
 async function scanAllInboxes() {
-  const state = await readState();
+  return runSerialized(async () => {
+    const state = await readState();
 
-  if (!state.settings.enabled) {
-    throw new Error("ThunderCat ist deaktiviert.");
-  }
-
-  const accounts = await getAccountsWithFolders();
-  let processed = 0;
-  let moved = 0;
-  let scannedFolders = 0;
-
-  for (const account of accounts) {
-    if (!accountSelected(account.id, state.settings)) {
-      continue;
+    if (!state.settings.enabled) {
+      throw new Error("ThunderCat ist deaktiviert.");
     }
 
-    const inbox = findInbox(account);
-    if (!inbox) {
-      continue;
-    }
+    const accounts = await getAccountsWithFolders();
+    let processed = 0;
+    let moved = 0;
+    let scannedFolders = 0;
 
-    if (state.settings.autoCreateFolders) {
-      await ensureCategoryFoldersForInbox(inbox, state);
-    }
+    for (const account of accounts) {
+      if (!accountSelected(account.id, state.settings)) {
+        continue;
+      }
 
-    const folders = await getScanFolders(
-      inbox,
-      Boolean(state.settings.includeSubfolders)
-    );
+      const inbox = findInbox(account);
+      if (!inbox) {
+        continue;
+      }
 
-    for (const folder of folders) {
-      const messages = await listMessages(
-        folder.id,
-        Math.max(1, Number(state.settings.scanLimit || 2000))
-      );
+      if (state.settings.autoCreateFolders) {
+        await ensureCategoryFoldersForInbox(inbox, state);
+      }
 
-      const result = await processMessagesForInbox(
-        messages,
+      const folders = await getScanFolders(
         inbox,
-        state
+        Boolean(state.settings.includeSubfolders)
       );
 
-      processed += result.processed;
-      moved += result.moved;
-      scannedFolders += 1;
+      for (const folder of folders) {
+        const messages = await listMessages(
+          folder.id,
+          Math.max(1, Number(state.settings.scanLimit || 2000))
+        );
+
+        const result = await processMessagesForInbox(
+          messages,
+          inbox,
+          state
+        );
+
+        processed += result.processed;
+        moved += result.moved;
+        scannedFolders += 1;
+      }
     }
-  }
 
-  state.stats.lastRun = nowIso();
-  await writeState(state);
+    state.stats.lastRun = nowIso();
+    await writeState(state);
 
-  return {
-    processed,
-    moved,
-    scannedFolders,
-    includeSubfolders: Boolean(state.settings.includeSubfolders),
-    mappings: Object.keys(state.senderMappings).length,
-  };
+    return {
+      processed,
+      moved,
+      scannedFolders,
+      includeSubfolders: Boolean(state.settings.includeSubfolders),
+      mappings: Object.keys(state.senderMappings).length,
+    };
+  });
 }
 
 async function ensureBaseFolders() {
-  const state = await readState();
-  const accounts = await getAccountsWithFolders();
-  let inboxes = 0;
+  return runSerialized(async () => {
+    const state = await readState();
+    const accounts = await getAccountsWithFolders();
+    let inboxes = 0;
 
-  for (const account of accounts) {
-    if (!accountSelected(account.id, state.settings)) {
-      continue;
+    for (const account of accounts) {
+      if (!accountSelected(account.id, state.settings)) {
+        continue;
+      }
+
+      const inbox = findInbox(account);
+      if (!inbox) {
+        continue;
+      }
+
+      await ensureCategoryFoldersForInbox(inbox, state);
+      inboxes += 1;
     }
 
-    const inbox = findInbox(account);
-    if (!inbox) {
-      continue;
-    }
+    await writeState(state);
 
-    await ensureCategoryFoldersForInbox(inbox, state);
-    inboxes += 1;
-  }
-
-  await writeState(state);
-
-  return {
-    inboxes,
-    createdFolders: state.stats.createdFolders,
-  };
+    return {
+      inboxes,
+      createdFolders: state.stats.createdFolders,
+    };
+  });
 }
 
 async function processIncoming(folder, messageList) {
-  const state = await readState();
+  return runSerialized(async () => {
+    const state = await readState();
 
-  if (
-    !state.settings.enabled ||
-    !state.settings.processNewMail
-  ) {
-    return;
-  }
+    if (
+      !state.settings.enabled ||
+      !state.settings.processNewMail
+    ) {
+      return;
+    }
 
-  if (!accountSelected(folder.accountId, state.settings)) {
-    return;
-  }
+    if (!accountSelected(folder.accountId, state.settings)) {
+      return;
+    }
 
-  const isInbox = (folder.specialUse || []).includes("inbox");
+    const isInbox = (folder.specialUse || []).includes("inbox");
 
-  if (!isInbox) {
-    return;
-  }
+    if (!isInbox) {
+      return;
+    }
 
-  const messages = messageList?.messages || [];
+    const messages = messageList?.messages || [];
 
-  if (!messages.length) {
-    return;
-  }
+    if (!messages.length) {
+      return;
+    }
 
-  try {
-    await processMessagesForInbox(messages, folder, state);
-  } catch (error) {
     try {
-      await messenger.notifications.create({
-        type: "basic",
-        iconUrl: "icons/thundercat-64.png",
-        title: "ThunderCat",
-        message: `Neue Mail konnte nicht sortiert werden: ${error.message}`,
-      });
-    } catch (_) {}
-  }
+      await processMessagesForInbox(messages, folder, state);
+    } catch (error) {
+      try {
+        await messenger.notifications.create({
+          type: "basic",
+          iconUrl: "icons/thundercat-64.png",
+          title: "ThunderCat",
+          message: `Neue Mail konnte nicht sortiert werden: ${error.message}`,
+        });
+      } catch (_) {}
+    }
+  });
 }
 
 async function forceCategoryForSelected(info, category) {
@@ -971,60 +1035,60 @@ async function forceCategoryForSelected(info, category) {
     return;
   }
 
-  const state = await readState();
+  return runSerialized(async () => {
+    const state = await readState();
 
-  for (const message of selected) {
-    const parsed = parseAuthor(message.author);
+    for (const message of selected) {
+      const parsed = parseAuthor(message.author);
 
-    if (!parsed.email || !message.folder) {
-      continue;
+      if (!parsed.email || !message.folder) {
+        continue;
+      }
+
+      state.senderMappings[parsed.email] = {
+        category,
+        confidence: 1,
+        reason: "Manuell über Thunderbird-Kontextmenü zugeordnet.",
+        domain: getBaseDomain(parsed.domain),
+        source: "manual",
+        updatedAt: nowIso(),
+      };
+
+      const accounts = await messenger.accounts.list(true);
+      const account = accounts.find(
+        item => item.id === message.folder.accountId
+      );
+
+      const inbox = findInbox(account);
+
+      if (!inbox) {
+        continue;
+      }
+
+      const target = await ensureTargetFolder(
+        inbox,
+        category,
+        parsed.domain,
+        state
+      );
+
+      const moveResult = await moveMessageWithRetry(
+        message.id,
+        target,
+        state,
+        { isUserAction: true, maxAttempts: 3 }
+      );
+
+      if (moveResult.ok) {
+        state.stats.moved += 1;
+        addActivity(state, {
+          type: "manual",
+          message: `${parsed.email} → ${category}`,
+        });
+      }
     }
 
-    state.senderMappings[parsed.email] = {
-      category,
-      confidence: 1,
-      reason: "Manuell über Thunderbird-Kontextmenü zugeordnet.",
-      domain: getBaseDomain(parsed.domain),
-      source: "manual",
-      updatedAt: nowIso(),
-    };
-
-    const accounts = await messenger.accounts.list(true);
-    const account = accounts.find(
-      item => item.id === message.folder.accountId
-    );
-
-    const inbox = findInbox(account);
-
-    if (!inbox) {
-      continue;
-    }
-
-    const target = await ensureTargetFolder(
-      inbox,
-      category,
-      parsed.domain,
-      state
-    );
-
-    const moveResult = await moveMessageWithRetry(
-      message.id,
-      target,
-      state,
-      { isUserAction: true, maxAttempts: 3 }
-    );
-
-    if (moveResult.ok) {
-      state.stats.moved += 1;
-      addActivity(state, {
-        type: "manual",
-        message: `${parsed.email} → ${category}`,
-      });
-    }
-  }
-
-  state.stats.lastRun = nowIso();
-  await writeState(state);
+  });
 }
 
 async function setupMenus() {
@@ -1198,5 +1262,5 @@ setupMenus().catch(error => {
 });
 
 console.info(
-  "ThunderCat 6.0.1 Background gestartet."
+  "ThunderCat 6.1.2 Background gestartet."
 );

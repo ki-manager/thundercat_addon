@@ -50,7 +50,7 @@ const DEFAULT_SETTINGS = {
   mistralApiKey: "",
   mistralModel: "mistral-small-latest",
   openaiApiKey: "",
-  openaiModel: "gpt-6-luna",
+  openaiModel: "gpt-4o-mini",
   minConfidence: 0.72,
   batchSize: 20,
   scanLimit: 2000,
@@ -61,6 +61,18 @@ let currentMappings = {};
 let currentAccounts = [];
 
 const $ = selector => document.querySelector(selector);
+
+function getBaseDomain(input) {
+  let value = String(input || "").trim().toLowerCase();
+
+  if (value.includes("@")) {
+    value = value.split("@").pop();
+  }
+
+  value = value.replace(/^\.+|\.+$/g, "");
+
+  return value || "unbekannt";
+}
 
 function showStatus(selector, text, isError = false) {
   const node = $(selector);
@@ -415,9 +427,36 @@ $("#importMappings").addEventListener("change", async event => {
       throw new Error("Ungültige Mapping-Datei.");
     }
 
+    const imported = {};
+
+    for (const [email, item] of Object.entries(parsed)) {
+      const normalizedEmail = String(email || "")
+        .toLowerCase()
+        .trim();
+      const category = String(item?.category || "").trim();
+
+      if (!normalizedEmail || !CATEGORIES.includes(category)) {
+        continue;
+      }
+
+      let confidence = Number(item?.confidence ?? 0);
+      if (!Number.isFinite(confidence)) {
+        confidence = 0;
+      }
+
+      imported[normalizedEmail] = {
+        ...currentMappings[normalizedEmail],
+        ...item,
+        category,
+        confidence: Math.min(1, Math.max(0, confidence)),
+        domain: String(item?.domain || getBaseDomain(normalizedEmail)),
+        updatedAt: item?.updatedAt || new Date().toISOString(),
+      };
+    }
+
     currentMappings = {
       ...currentMappings,
-      ...parsed,
+      ...imported,
     };
 
     await messenger.storage.local.set({
